@@ -1,49 +1,72 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import axios from "axios";
 import "./App.css";
 
+import PromptInput from "./components/PromptInput";
+import ReminderList from "./components/ReminderList";
+
+
+
 function App() {
   const [prompt, setPrompt] = useState("");
-  const [reminder, setReminder] = useState(null);
+  const [reminders, setReminders] = useState([]);
   const [loading, setLoading] = useState(false);
+
+  // Load saved reminders on first render
+  useEffect(() => {
+    const stored = localStorage.getItem("reminders");
+    console.log("stored", stored);
+    if (stored) {
+      setReminders(JSON.parse(stored));
+    }
+  }, []);
+
+  // Save reminders to localStorage whenever they change
+  useEffect(() => {
+    console.log(reminders)
+    localStorage.setItem("reminders", JSON.stringify(reminders));
+  }, [reminders]);
 
   const handleSubmit = async () => {
     if (!prompt.trim()) return;
     setLoading(true);
     try {
       const res = await axios.post("http://localhost:5000/api/parse", { prompt });
-      console.log(res.data[0].text)
-      setReminder(res.data[0].text);
+      setReminders((prev) => [...prev, res.data]);
+      setPrompt("");
     } catch (err) {
       alert("Error parsing reminder");
       console.error(err);
+    } finally {
+      setLoading(false);
     }
-    setLoading(false);
   };
+
+  const handleDelete = (index) => {
+    setReminders((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const handleEdit = (index, updatedReminder) => {
+    setReminders((prev) =>
+      prev.map((reminder, i) => (i === index ? updatedReminder : reminder))
+    );
+  };
+
 
   return (
     <div className="App">
       <h1>🧠 AI Reminder Assistant</h1>
-      <textarea
-        rows={4}
-        placeholder="e.g., Remind me to email Sarah every Monday at 10 AM"
-        value={prompt}
-        onChange={(e) => setPrompt(e.target.value)}
+      <PromptInput
+        prompt={prompt}
+        setPrompt={setPrompt}
+        handleSubmit={handleSubmit}
+        loading={loading}
       />
-      <button onClick={handleSubmit} disabled={loading}>
-        {loading ? "Parsing..." : "Create Reminder"}
-      </button>
-
-      {reminder && (
-        <div className="card">
-          <h3>🔔 Your Reminder</h3>
-          <p><strong>Task:</strong> {reminder.task}</p>
-          <p><strong>Time:</strong> {reminder.time}</p>
-          <p><strong>Date:</strong> {reminder.date}</p>
-          <p><strong>Recurring:</strong> {reminder.recurring?.join(", ")}</p>
-          <p><strong>Note:</strong> {reminder.note}</p>
-        </div>
-      )}
+      <ReminderList
+        reminders={reminders}
+        onDelete={handleDelete}
+        onEdit={handleEdit}
+      />
     </div>
   );
 }
